@@ -62,7 +62,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.swing.JOptionPane;
 import cartographer.CoverageFile.*;
 
 //@formatter:off
@@ -544,7 +543,11 @@ public class CartographerPlugin extends ProgramPlugin {
             }
 
             // Ask the user which module to use
-            ListSelectionDialog<String> responseDialog = new ListSelectionDialog<String>("Select a Coverage Module", "Module", modNames, DataToStringConverter.stringDataToStringConverter);
+            ListSelectionDialog<String> responseDialog = new ListSelectionDialog<String>(
+                "Select a Coverage Module", 
+                "Module", 
+                modNames, 
+                DataToStringConverter.stringDataToStringConverter);
 
             responseDialog.show(tool.getActiveWindow());
             String response = responseDialog.getSelectedItem();
@@ -552,7 +555,7 @@ public class CartographerPlugin extends ProgramPlugin {
             if (responseDialog.wasCancelled()) {
                 return false;
             }
-            
+
             // Get the module data from the selected module option
             DrCovModule module = file.getModule(response);
 
