@@ -43,6 +43,7 @@ public class CoverageFile {
     public enum STATUS {
         OK("File loaded."),
         HEADER_ERROR("Unknown file header."),
+        DRCOV_MODULE_VERSION_ERROR("Unknown DrCov Module version."),
         DRCOV_MODULE_TABLE_ERROR("DrCov Module error."),
         DRCOV_BBTABLE_ERROR("DrCov BB Table error."),
         DRCOV_MODULE_ERROR("DrCov Module error."),
@@ -180,40 +181,26 @@ public class CoverageFile {
         
         // Update strings if any matches were found
         if (match.find()) {
-            version = Integer.parseInt((match.group(1) != null) ? match.group(1) : "0");
+            // Default to version 1 if module table version doesn't exist
+            version = Integer.parseInt((match.group(1) != null) ? match.group(1) : "1");
             numModules = Integer.parseInt(match.group(2));
         }
+        
+        // Skip column names if this wasn't a version 1 DRCOV module set
+        if (version > 1) {
+            reader.readLine();
+        }
 
-        // Skip the column names
-        reader.readLine();
-
-        // Parse modules
+        // Parse each module
         for (int i = 0; i < numModules; i++) {
 
             // Read each module
             line = reader.readLine();
             String[] moduleData = line.split(",");
-
-            // Add module data parsed by Drcov version
-            switch (version) {
-                case 1:
-                    drcovModules.add(parseModuleV1(moduleData));
-                    break;
-                case 2:
-                    drcovModules.add(parseModuleV2(moduleData));
-                    break;
-                case 3:
-                    drcovModules.add(parseModuleV3(moduleData));
-                    break;
-                case 4:
-                    drcovModules.add(parseModuleV4(moduleData));
-                    break;
-                case 5:
-                    drcovModules.add(parseModuleV5(moduleData));
-                    break;
-                default:
-                    break;
-            }
+            
+            // Read the DRCOV module data and add it to the list of modules
+            DrCovModule module = parseDrCovModule(moduleData);
+            drcovModules.add(module);
         }
 
         // Read the BB Table line
@@ -267,7 +254,7 @@ public class CoverageFile {
                 match = Pattern.compile("module\\[\\s*(\\d+)\\]: 0x([0-9a-fA-F]+?),\\s*(\\d+)").matcher(line);
                 if (match.find()) {
                     int moduleId = Integer.parseInt(match.group(1)) & 0xFFFF;
-                    int offset = Integer.parseInt(match.group(2), 16);
+                    int offset = Integer.parseUnsignedInt(match.group(2), 16);
                     short size = Short.parseShort(match.group(3));
                     
                     // Make sure the module ID is valid
@@ -383,6 +370,50 @@ public class CoverageFile {
     }
 
     /**
+     * Parses a DRCOV module.
+     * 
+     * @param moduleData    List of module string data
+     * 
+     * @return              DRCOV module data
+     */
+    private DrCovModule parseDrCovModule(String[] moduleData) {
+        
+        // Module ID is always at position 0
+        int moduleId = Integer.parseInt(moduleData[0].trim());
+        
+        // File path always comes last
+        String name = moduleData[moduleData.length-1].trim();
+        
+        // Default parent ID and base position for versions 1 and 2
+        int parentId = 0;
+        int basePos = 1;
+        
+        // Process versions 3 and above
+        if (version > 2) {
+            
+            // Versions 3, 4, and 5 all have the parent ID at position 1
+            parentId = Integer.parseInt(moduleData[1].trim());
+            
+            // Version 3 has the base address at position 2
+            if (version == 3) {
+                basePos = 2;
+            }
+            
+            // Versions 4 and 5 have the base address at position 5
+            else {
+                basePos = 5;
+            }
+        }
+        
+        // Get the base address based on its position
+        long base = Long.parseUnsignedLong(moduleData[basePos].trim().replace("0x", ""), 16);
+        
+        // Create and return the DrCovModule from the parsed module entry
+        DrCovModule module = new DrCovModule(moduleId, parentId, base, name);
+        return module;
+    }
+    
+    /**
      * Populates the map of usable modules with those read from the DRCOV file.
      * 
      * @param modList  List of DrCovModule objects
@@ -403,6 +434,10 @@ public class CoverageFile {
 
             // Add each block to the new module
             for (BasicBlock block : module.getBasicBlocks()) {
+                // Add the base address to the offset if this was a v5 module
+                if (version == 5) {
+                    block.offset += module.base;
+                }
                 newMod.addBlock(block.offset, block.size, block.moduleId);
             }
 
@@ -447,7 +482,7 @@ public class CoverageFile {
                 String addressSpace = match.group(3);
 
                 // Create a block from the data
-                module.addBlock((int)offset, size, addressSpace);
+                module.addBlock(offset, size, addressSpace);
             }
 
             // Read the next line
@@ -527,7 +562,7 @@ public class CoverageFile {
          * @param size    Size of the block in bytes
          * @param module  Module ID
          */
-        private void addBlock(int offset, short size, int module) {
+        private void addBlock(long offset, short size, int module) {
             BasicBlock basicBlock = new BasicBlock(offset, size, module);
             this.getBasicBlocks().add(basicBlock);
         }
@@ -552,7 +587,7 @@ public class CoverageFile {
          * @param size          Size of the block in bytes
          * @param addressSpace  Address space of the block
          */
-        private void addBlock(int offset, short size, String addressSpace) {
+        private void addBlock(long offset, short size, String addressSpace) {
             BasicBlock basicBlock = new BasicBlock(offset, size, addressSpace);
             this.getBasicBlocks().add(basicBlock);
         }
@@ -562,7 +597,7 @@ public class CoverageFile {
      * Represents a basic block.
      */
     public class BasicBlock {
-        private int offset;
+        private long offset;
         private short size;
         private int moduleId;
         private AddressSpace addressSpace;
@@ -574,7 +609,7 @@ public class CoverageFile {
          * @param size      Size of the block in bytes
          * @param moduleId  Module ID
          */
-        public BasicBlock(int offset, short size, int moduleId) {
+        public BasicBlock(long offset, short size, int moduleId) {
             this.offset = offset;
             this.size = size;
             this.moduleId = moduleId;
@@ -587,7 +622,7 @@ public class CoverageFile {
          * @param size          Size of the block in bytes
          * @param addressSpace  Address space of the block
          */
-        public BasicBlock(int offset, short size, String addressSpace) {
+        public BasicBlock(long offset, short size, String addressSpace) {
             this.offset = offset;
             this.size = size;
             this.addressSpace = CartographerPlugin.getAddressSpace(addressSpace);
@@ -599,7 +634,7 @@ public class CoverageFile {
          * @param offset  Memory offset of the block
          * @param size    Size of the block in bytes
          */
-        public BasicBlock(int offset, short size) {
+        public BasicBlock(long offset, short size) {
             this.offset = offset;
             this.size = size;
         }
@@ -631,7 +666,7 @@ public class CoverageFile {
             }
 
             // Get the address within the address space
-            Address address = block.addressSpace.getAddressInThisSpaceOnly(Integer.toUnsignedLong(block.offset));
+            Address address = block.addressSpace.getAddressInThisSpaceOnly(block.offset);
 
             // Check if address is relative to the address space offset
             Address spaceOffset = block.addressSpace.getMinAddress();
