@@ -30,7 +30,6 @@ import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressSpace;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
-import ghidra.util.Msg;
 
 /**
  * Represents a loaded coverage file with processed code coverage data.
@@ -84,7 +83,6 @@ public class CoverageFile {
      * @throws IOException  If an I/O exception occurred
      */
     public CoverageFile(String filename) throws IOException {
-        Msg.info("CoverageFile", "Loading filename: "+filename);
 
         // Filename without the pathname
         this.filename = filename.substring(filename.lastIndexOf('/') + 1);
@@ -239,8 +237,6 @@ public class CoverageFile {
                 short size = readShort(reader);
                 int moduleId = readShort(reader) & 0xFFFF;
 
-                Msg.info("CoverageFile", "Adding block moduleId: " + moduleId + " offset: " + offset + " size: " + size);
-
                 // Make sure the module ID is valid
                 if(moduleId < numModules){
                     // Add the block to the module
@@ -268,105 +264,6 @@ public class CoverageFile {
         
         // Populate the module list
         populateModules(drcovModules);
-    }
-
-    // Parse DrcovModule entry v1, table: id, size, path
-    private DrCovModule parseModuleV1(String[] moduleData){
-
-        int moduleId = Integer.parseInt(moduleData[0].trim());
-
-        // parentId is 0 as it was not introduced until version 3 of Drcov module entry
-        int parentId = 0;
-
-        // base is set as size as base was not introduced until version 2 of Drcov module entry
-        // likely that this Cartographer does not support V1 of Drcov format.
-        long base = Long.parseUnsignedLong(moduleData[1].trim().replace("0x",""), 16);
-
-        String name = moduleData[moduleData.length-1].trim();
-
-        return new DrCovModule(
-            moduleId,
-            parentId,
-            base,
-            name
-        );
-    }
-
-    // Parse DrcovModule entry v2, table: id, base, end, entry, checksum (windows), timestamp (windows), path
-    private DrCovModule parseModuleV2(String[] moduleData){
-
-        int moduleId = Integer.parseInt(moduleData[0].trim());
-
-        // parentId is 0 as it was not introduced until version 3 of Drcov module entry
-        int parentId = 0;
-
-        long base = Long.parseUnsignedLong(moduleData[1].trim().replace("0x",""), 16);
-
-        String name = moduleData[moduleData.length-1].trim();
-
-        return new DrCovModule(
-            moduleId,
-            parentId,
-            base,
-            name
-        );
-    }
-
-    // Parse DrcovModule entry v3, table: id, containing_id, base, end, entry, checksum (windows), timestamp (windows), path
-    private DrCovModule parseModuleV3(String[] moduleData){
-
-        int moduleId = Integer.parseInt(moduleData[0].trim());
-
-        int parentId = Integer.parseInt(moduleData[1].trim());
-
-        long base = Long.parseUnsignedLong(moduleData[2].trim().replace("0x",""), 16);
-
-        String name = moduleData[moduleData.length-1].trim();
-
-        return new DrCovModule(
-            moduleId,
-            parentId,
-            base,
-            name
-        );
-    }
-
-    // Parse DrcovModule entry v4, table: id, containing_id, base, end, entry, offset, checksum (windows), timestamp (windows), path
-    private DrCovModule parseModuleV4(String[] moduleData){
-
-        int moduleId = Integer.parseInt(moduleData[0].trim());
-
-        int parentId = Integer.parseInt(moduleData[1].trim());
-
-        long base = Long.parseUnsignedLong(moduleData[2].trim().replace("0x",""), 16);
-
-        String name = moduleData[moduleData.length-1].trim();
-
-        return new DrCovModule(
-            moduleId,
-            parentId,
-            base,
-            name
-        );
-    }
-
-    // Parse DrcovModule entry v5, table: id, containing_id, base, end, entry, offset, preferred_base, checksum (windows), timestamp (windows), path
-    private DrCovModule parseModuleV5(String[] moduleData){
-
-        int moduleId = Integer.parseInt(moduleData[0].trim());
-
-        int parentId = Integer.parseInt(moduleData[1].trim());
-
-        long base = Long.parseUnsignedLong(moduleData[2].trim().replace("0x",""), 16);
-
-        String name = moduleData[moduleData.length-1].trim();
-
-        return new DrCovModule(
-            moduleId,
-            parentId,
-            base,
-            name
-        );
     }
 
     /**
