@@ -163,7 +163,7 @@ public class CoverageFile {
 
         // Placeholder line
         String line = null;
-        List<DrCovModule> drcovModules = new ArrayList<>();
+        HashMap<Integer, DrCovModule> drcovModules=new HashMap<Integer,DrCovModule>();
 
         // Skip DRCOV FLAVOR header
         reader.readLine();
@@ -198,7 +198,7 @@ public class CoverageFile {
             
             // Read the DRCOV module data and add it to the list of modules
             DrCovModule module = parseDrCovModule(moduleData);
-            drcovModules.add(module);
+            drcovModules.put(module.moduleId, module);
         }
 
         // Read the BB Table line
@@ -315,10 +315,9 @@ public class CoverageFile {
      * 
      * @param modList  List of DrCovModule objects
      */
-    private void populateModules(List<DrCovModule> modList) {
-        
+    private void populateModules(Map<Integer, DrCovModule> modList) {
         // Loop through each module
-        for (DrCovModule module : modList) {
+        for (DrCovModule module : modList.values()) {
 
             // Make sure module list entry exists
             if (!modules.containsKey(module.name)) {
@@ -550,7 +549,6 @@ public class CoverageFile {
      * @param program  Current program being analyzed
      */
     public void populateBlocks(Program program) {
-        
         // Loop through each basic block
         for (BasicBlock block : this.blocks) {
 
